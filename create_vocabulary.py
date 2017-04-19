@@ -5,6 +5,10 @@ VOC_SIZE = 20000
 CORPUS_SIZE = -1
 
 if __name__ == "__main__":
-    voc = Vocabulary(VOC_SIZE, CORPUS_SIZE)
+    voc = Vocabulary(voc_size=VOC_SIZE, corpus_size=CORPUS_SIZE)
     voc.init(sys.argv[1])
     voc.dump_to_file(sys.argv[2])
+
+#     voc2 = Vocabulary()
+#     voc2.load_from_file(sys.argv[2])
+#     print(voc2.parse("something nice is hapning to me"))
