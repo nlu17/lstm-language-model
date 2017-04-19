@@ -1,16 +1,22 @@
-def load_embedding(self, session, vocab, emb, path, dim_embedding):
+import gensim
+import numpy as np
+import tensorflow as tf
+
+
+def load_embedding(session, vocab, emb, path, dim_embedding):
     '''
       session        Tensorflow session object
-      vocab          A dictionary mapping token strings to vocabulary IDs
+      vocab          A Vocabulary instance
       emb            Embedding tensor of shape vocabulary_size x dim_embedding
       path           Path to embedding file
       dim_embedding  Dimensionality of the external embedding.
     '''
     print("Loading external embeddings from %s" % path)
-    model = models.Word2Vec.load_word2vec_format(path, binary=False)
-    external_embedding = np.zeros(shape=(FLAGS.vocab_size, dim_embedding))
+    model = gensim.models.KeyedVectors.load_word2vec_format(path, binary=False)
+    external_embedding = np.zeros(shape=(vocab.voc_size, dim_embedding))
     matches = 0
-    for tok, idx in vocab.items():
+    for tok, value in vocab.voc.items():
+        idx, _ = value
         if tok in model.vocab:
             external_embedding[idx] = model[tok]
             matches += 1
@@ -18,7 +24,7 @@ def load_embedding(self, session, vocab, emb, path, dim_embedding):
             print("%s not in embedding file" % tok)
             external_embedding[idx] = np.random.uniform(low=-0.25, high=0.25, size=dim_embedding)
 
-    print("%d words out of %d could be loaded" % (matches, FLAGS.vocab_size))
+    print("%d words out of %d could be loaded" % (matches, vocab.voc_size))
 
     pretrained_embeddings = tf.placeholder(tf.float32, [None, None])
     assign_op = emb.assign(pretrained_embeddings)
