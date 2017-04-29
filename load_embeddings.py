@@ -15,14 +15,13 @@ def load_embedding(session, vocab, emb, path, dim_embedding):
     model = gensim.models.KeyedVectors.load_word2vec_format(path, binary=False)
     external_embedding = np.zeros(shape=(vocab.voc_size, dim_embedding))
     matches = 0
-    for tok, value in vocab.voc.items():
-        idx, _ = value
+    for tok, tok_info in vocab.voc.items():
         if tok in model.vocab:
-            external_embedding[idx] = model[tok]
+            external_embedding[tok_info.idx] = model[tok]
             matches += 1
         else:
             print("%s not in embedding file" % tok)
-            external_embedding[idx] = np.random.uniform(low=-0.25, high=0.25, size=dim_embedding)
+            external_embedding[tok_info.idx] = np.random.uniform(low=-0.25, high=0.25, size=dim_embedding)
 
     print("%d words out of %d could be loaded" % (matches, vocab.voc_size))
 
