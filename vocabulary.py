@@ -31,6 +31,12 @@ class Vocabulary:
                 tokens = line.strip('\n').split(' ')
                 for tok in tokens:
                     tmp_dict[tok] = tmp_dict.get(tok, 0) + 1
+            tmp_dict.update({
+                "<bos>": len(lines),
+                "<eos>": len(lines),
+                "<pad>": len(lines),
+                "<unk>": len(lines)
+            })
 
         self.sorted_voc = sorted(
                 tmp_dict.items(),
@@ -42,7 +48,7 @@ class Vocabulary:
 
         self.voc = dict(
             [(item[0], TokInfo(item[0], index, encodings[index], item[1]))
-                         for index, item in enumerate(self.sorted_voc)])
+                for index, item in enumerate(self.sorted_voc)])
 
     """
     Get a sentence (string) as input and return a list of tokens. Returns None
@@ -64,6 +70,12 @@ class Vocabulary:
 
         return tokens
 
+    """
+    Get a list of tokens and return a numpy array of indexes.
+    """
+    def get_tok_ids(self, tokens):
+        return np.array([self.voc[tok].idx for tok in tokens])
+
     def load_from_file(self, voc_file):
         with open(voc_file, "r") as fin:
             lines = fin.readlines()
@@ -76,7 +88,7 @@ class Vocabulary:
                 [cast(line.strip("\n").split(' ')) for line in lines]
             self.voc = dict(
                 [(item[0], TokInfo(item[0], index, encodings[index], item[1]))
-                            for index, item in enumerate(self.sorted_voc)])
+                    for index, item in enumerate(self.sorted_voc)])
 
     """
     Write sorted_vec to file. The tokens are ordered by the collection count.

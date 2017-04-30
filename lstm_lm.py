@@ -1,4 +1,5 @@
 from load_embeddings import load_embedding
+import numpy as np
 import tensorflow as tf
 from vocabulary import Vocabulary
 
@@ -9,18 +10,22 @@ BATCH_SIZE = 64
 CLIP_NORM = 10  # TODO: clip the norms
 
 LEARNING_RATE = 0.001
-DISPLAY_STEP = 100
-MAX_ITERS = 1000
+DISPLAY_STEP = 10
+MAX_ITERS = 5000
 
 
 class LSTM_LM:
-    def __init__(self, session, vocab, is_training, keep_prob=1):
+    def __init__(self, session, vocab, data_source, is_training, dropout=1):
         self.sess = session
         self.vocab = vocab
+        self.data_source = data_source
         self.is_training = is_training
-        self.keep_prob = keep_prob
+        self.dropout = dropout
 
         self.embeddings = tf.Variable(tf.zeros([vocab.voc_size, EMB_SIZE]))
+
+        # Dropout (keep probability).
+        self.keep_prob = tf.placeholder(tf.float32)
 
         self.softmax_w = tf.get_variable(
             "softmax_w",
@@ -39,8 +44,6 @@ class LSTM_LM:
         load_embedding(self.sess, self.vocab, self.embeddings, path, EMB_SIZE)
 
     def get_model(self):
-        self.init_weights = tf.global_variables_initializer()
-
         self.input_data = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
         self.targets = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
 
@@ -53,11 +56,11 @@ class LSTM_LM:
             initializer=emb_initializer,
             dtype=tf.float32)
         emb_inputs = tf.nn.embedding_lookup(embedding, self.input_data)
-        if self.is_training and self.keep_prob < 1:
+        if self.is_training and self.dropout < 1:
             emb_inputs = tf.nn.dropout(emb_inputs, self.keep_prob)
 
         cell = tf.contrib.rnn.BasicLSTMCell(LSTM_HIDDEN, state_is_tuple=True)
-        if self.is_training and self.keep_prob < 1:
+        if self.is_training and self.dropout < 1:
             cell = tf.contrib.rnn.DropoutWrapper(
                     cell, output_keep_prob=self.keep_prob)
 
@@ -94,9 +97,11 @@ class LSTM_LM:
         self.optimizer = tf.train.AdamOptimizer(
             learning_rate=LEARNING_RATE) .minimize(self.cost)
         correct_pred = tf.equal(
-            tf.argmax(self.logits, 1),
-            tf.argmax(self.targets, 1))
+            tf.cast(tf.argmax(logits, 1), dtype=tf.int32),
+            tf.reshape(self.targets, [-1]))
         self.accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+
+        self.init_weights = tf.global_variables_initializer()
 
     def train(self):
         with tf.Session() as sess:
@@ -105,22 +110,22 @@ class LSTM_LM:
             # Keep training until reach max iterations
             while step * BATCH_SIZE < MAX_ITERS:
                 # TODO: get next batch
-                batch_x, batch_y = next_train_batch(
-                        self.batch_size)
+                batch_inputs, batch_targets = \
+                    self.data_source.next_train_batch(BATCH_SIZE)
                 # Run optimization op (backprop)
                 sess.run(
                         self.optimizer,
                         feed_dict={
-                            self.input_data: batch_x,
-                            self.targets: batch_y,
+                            self.input_data: batch_inputs,
+                            self.targets: batch_targets,
                             self.keep_prob: self.dropout})
                 if step % DISPLAY_STEP == 0:
                     # Calculate batch loss and accuracy
                     loss, acc = sess.run(
                             [self.cost, self.accuracy],
                             feed_dict={
-                                    self.input_data: batch_x,
-                                    self.targets: batch_y,
+                                    self.input_data: batch_inputs,
+                                    self.targets: batch_targets,
                                     self.keep_prob: 1})
                     print("Iter " + str(step*BATCH_SIZE) +
                           ", Minibatch Loss = {:.6f}".format(loss) +
@@ -128,14 +133,52 @@ class LSTM_LM:
                 step += 1
 
 
+class DataSource:
+    def __init__(self, data_file, pad_idx):
+        self.start = 0
+        self.dataset = {}
+        with open(data_file, "r") as f:
+            lines = f.readlines()[:100] # TODO: remove the :100 part
+            lines = [line.strip("\n").split(" ") for line in lines]
+            lines = [np.array([int(x) for x in line]) for line in lines]
+            targets = [np.append(line[1:], pad_idx) for line in lines]
+
+            self.dataset["input"] = lines
+            self.dataset["target"] = targets
+
+        self.size = len(self.dataset["input"])
+
+    def next_train_batch(self, batch_size):
+        batch_inputs = []
+        batch_targets = []
+        end = self.start + batch_size
+        batch_inputs = self.dataset["input"][self.start:end]
+        batch_targets = self.dataset["target"][self.start:end]
+
+        self.start = end
+
+        if (len(batch_inputs) < batch_size):
+            rest = batch_size - len(batch_inputs)
+            batch_inputs += self.dataset["input"][:rest]
+            batch_targets += self.dataset["target"][:rest]
+            self.start = rest
+
+        return batch_inputs, batch_targets
+
+
 if __name__ == "__main__":
     voc = Vocabulary()
     voc.load_from_file("data/vocabulary.train")
+
+    pad_idx = voc.voc["<pad>"].idx
+    data_source = DataSource("data/encoded.train", pad_idx)
+
     with tf.Session() as sess:
-        model = LSTM_LM(sess, voc, is_training=True)
+        model = LSTM_LM(sess, voc, data_source, is_training=True)
         model.init_inputs("wordembeddings-dim100.word2vec")
         print(model.embeddings.get_shape())
         idx = model.vocab.voc["something"].idx
         print(model.sess.run(model.embeddings[idx]))
 
         model.get_model()
+        model.train()
