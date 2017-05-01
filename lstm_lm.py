@@ -84,18 +84,22 @@ class LSTM_LM:
             [-1, LSTM_HIDDEN])
         logits = tf.matmul(output, self.softmax_w) + self.softmax_b
         print("logits", logits)
-        # TODO: replace loss with sparse_softmax_cross_entropy_with_logits
-        loss = tf.contrib.legacy_seq2seq.sequence_loss_by_example(
-            [logits],
-            [tf.reshape(self.targets, [-1])],
-            [tf.ones([BATCH_SIZE * SEQ_LEN], dtype=tf.float32)])
+
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels=[tf.reshape(self.targets, [-1])],
+            logits=[logits])
+
         print("loss", loss)
         self.cost = tf.reduce_sum(loss) / BATCH_SIZE
         print("cost", self.cost)
         final_state = state
 
+        tvars = tf.trainable_variables()
+        grads, _ = tf.clip_by_global_norm(
+            tf.gradients(self.cost, tvars),
+            CLIP_NORM)
         self.optimizer = tf.train.AdamOptimizer(
-            learning_rate=LEARNING_RATE) .minimize(self.cost)
+            learning_rate=LEARNING_RATE).apply_gradients(zip(grads, tvars))
         correct_pred = tf.equal(
             tf.cast(tf.argmax(logits, 1), dtype=tf.int32),
             tf.reshape(self.targets, [-1]))
