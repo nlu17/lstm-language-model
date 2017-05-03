@@ -174,7 +174,7 @@ class DataSource:
 
 if __name__ == "__main__":
     voc = Vocabulary()
-    voc.load_from_file("data/vocabulary.train")
+    voc.load_from_file("data/sentences.train")
 
     pad_idx = voc.voc["<pad>"].idx
     data_source = DataSource("data/encoded.train", pad_idx)
