@@ -21,7 +21,7 @@ class LSTM_LM:
         self.is_training = is_training
         self.dropout = dropout
 
-        self.embeddings = tf.Variable(tf.zeros([vocab.voc_size, EMB_SIZE]))
+        #self.embeddings = tf.Variable(tf.zeros([vocab.voc_size, EMB_SIZE]))
 
         # Dropout (keep probability).
         self.keep_prob = tf.placeholder(tf.float32)
@@ -37,28 +37,25 @@ class LSTM_LM:
             initializer=tf.contrib.layers.xavier_initializer(),
             dtype=tf.float32)
 
-    def init_inputs(self, path):
-        # add word2vec initialization
-        # default Xavier initialization is not taken care of here
-        # TODO: needs rethinking; rather load the embedding matrix to be used
-        # with embedding_lookup
-        # TODO: saurav will take care of this
-        # load_embedding(self.sess, self.vocab, self.embeddings, path, EMB_SIZE)
-        pass
-
-    def create_model(self):
+    def create_model(self, path=None):
         self.input_data = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
         self.targets = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
 
         # TODO: make it so we can initialize the embeddings with a matrix of
         # pretrained embeddings.
-        emb_initializer = tf.contrib.layers.xavier_initializer()
-        embedding = tf.get_variable(
-            "embedding",
-            [self.vocab.voc_size, EMB_SIZE],
-            initializer=emb_initializer,
-            dtype=tf.float32)
-        emb_inputs = tf.nn.embedding_lookup(embedding, self.input_data)
+        embeddings = tf.Variable(tf.zeros([vocab.voc_size, EMB_SIZE]))
+        if path is None:
+            emb_initializer = tf.contrib.layers.xavier_initializer()
+            embeddings = tf.get_variable(
+                "embeddings",
+                [self.vocab.voc_size, EMB_SIZE],
+                initializer=emb_initializer,
+                dtype=tf.float32)
+        else:
+            with tf.Session() as sess:
+                load_embedding(self.sess, self.vocab, embeddings, path, EMB_SIZE)
+
+        emb_inputs = tf.nn.embedding_lookup(embeddings, self.input_data)
         if self.is_training and self.dropout < 1:
             emb_inputs = tf.nn.dropout(emb_inputs, self.keep_prob)
 
@@ -183,9 +180,9 @@ if __name__ == "__main__":
     data_source = DataSource("data/encoded.train", pad_idx)
 
     model = LSTM_LM(voc, data_source, is_training=True)
-    model.init_inputs("wordembeddings-dim100.word2vec")
     print(model.embeddings.get_shape())
     idx = model.vocab.voc["something"].idx
 
     model.create_model()
+    #model.create_model("wordembeddings-dim100.word2vec")
     model.train()
