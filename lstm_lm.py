@@ -15,8 +15,7 @@ MAX_ITERS = 5000
 
 
 class LSTM_LM:
-    def __init__(self, session, vocab, data_source, is_training, dropout=1):
-        self.sess = session
+    def __init__(self, vocab, data_source, is_training, dropout=1):
         self.vocab = vocab
         self.data_source = data_source
         self.is_training = is_training
@@ -41,9 +40,11 @@ class LSTM_LM:
     def init_inputs(self, path):
         # TODO: needs rethinking; rather load the embedding matrix to be used
         # with embedding_lookup
-        load_embedding(self.sess, self.vocab, self.embeddings, path, EMB_SIZE)
+        # TODO: saurav will take care of this
+        # load_embedding(self.sess, self.vocab, self.embeddings, path, EMB_SIZE)
+        pass
 
-    def get_model(self):
+    def create_model(self):
         self.input_data = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
         self.targets = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
 
@@ -177,12 +178,10 @@ if __name__ == "__main__":
     pad_idx = voc.voc["<pad>"].idx
     data_source = DataSource("data/encoded.train", pad_idx)
 
-    with tf.Session() as sess:
-        model = LSTM_LM(sess, voc, data_source, is_training=True)
-        model.init_inputs("wordembeddings-dim100.word2vec")
-        print(model.embeddings.get_shape())
-        idx = model.vocab.voc["something"].idx
-        print(model.sess.run(model.embeddings[idx]))
+    model = LSTM_LM(voc, data_source, is_training=True)
+    model.init_inputs("wordembeddings-dim100.word2vec")
+    print(model.embeddings.get_shape())
+    idx = model.vocab.voc["something"].idx
 
-        model.get_model()
-        model.train()
+    model.create_model()
+    model.train()
