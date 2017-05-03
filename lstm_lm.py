@@ -38,6 +38,8 @@ class LSTM_LM:
             dtype=tf.float32)
 
     def init_inputs(self, path):
+        # add word2vec initialization
+        # default Xavier initialization is not taken care of here
         # TODO: needs rethinking; rather load the embedding matrix to be used
         # with embedding_lookup
         # TODO: saurav will take care of this
@@ -61,6 +63,7 @@ class LSTM_LM:
             emb_inputs = tf.nn.dropout(emb_inputs, self.keep_prob)
 
         cell = tf.contrib.rnn.BasicLSTMCell(LSTM_HIDDEN, state_is_tuple=True)
+        # TODO: get rid of dropout, saurav
         if self.is_training and self.dropout < 1:
             cell = tf.contrib.rnn.DropoutWrapper(
                     cell, output_keep_prob=self.keep_prob)
@@ -111,6 +114,7 @@ class LSTM_LM:
     def train(self):
         with tf.Session() as sess:
             sess.run(self.init_weights)
+            # TODO: run the assign op
             step = 1
             # Keep training until reach max iterations
             while step * BATCH_SIZE < MAX_ITERS:
