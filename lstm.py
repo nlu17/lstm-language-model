@@ -1,8 +1,5 @@
 from load_embeddings import load_embedding
-import numpy as np
 import tensorflow as tf
-from vocabulary import Vocabulary
-import sys
 
 EMB_SIZE = 100
 SEQ_LEN = 30
@@ -12,14 +9,16 @@ CLIP_NORM = 10
 
 LEARNING_RATE = 0.001
 DISPLAY_STEP = 10
+SAVE_STEP = 1000
 MAX_ITERS = 5000
 
 
 class LSTM_LM:
-    def __init__(self, vocab, data_source, is_training):
+    def __init__(self, vocab, data_source, is_training, exp_name):
         self.vocab = vocab
         self.data_source = data_source
         self.is_training = is_training
+        self.exp_name = exp_name
 
         self.softmax_w = tf.get_variable(
             "softmax_w",
@@ -89,6 +88,22 @@ class LSTM_LM:
 
         self.init_weights = tf.global_variables_initializer()
 
+    """
+    Saves model in a file
+    """
+    def save_model(self, sess, filename="final"):
+        filename = "model/" + exp_name + "_" + filename + ".ckpt"
+        saver = tf.train.Saver()
+        saver.save(sess, filename)
+
+    """
+    Loads the model from a file
+    """
+    def load_model(self, sess, filename="final"):
+        filename = "model/" + exp_name + "_" + filename + ".ckpt"
+        saver = tf.train.Saver()
+        saver.restore(sess, filename)
+
     def train(self, pretrained_embeddings_path=None):
         with tf.Session() as sess:
             sess.run(self.init_weights)
@@ -123,55 +138,13 @@ class LSTM_LM:
                     print("Iter " + str(step*BATCH_SIZE) +
                           ", Minibatch Loss = {:.6f}".format(loss) +
                           ", Training Accuracy = {:.5f}".format(acc))
+                if step % SAVE_STEP == 0:
+                    # save model
+                    print("Saving model iter %d" % step)
+                    self.save_model(sess, str(step))
+
                 step += 1
 
+                # Test the model
 
-class DataSource:
-    def __init__(self, data_file, pad_idx):
-        self.start = 0
-        self.dataset = {}
-        with open(data_file, "r") as f:
-            lines = f.readlines()[:100]  # TODO: remove the :100 part
-            lines = [line.strip("\n").split(" ") for line in lines]
-            lines = [np.array([int(x) for x in line]) for line in lines]
-            targets = [np.append(line[1:], pad_idx) for line in lines]
-
-            self.dataset["input"] = lines
-            self.dataset["target"] = targets
-
-        self.size = len(self.dataset["input"])
-
-    def next_train_batch(self, batch_size):
-        batch_inputs = []
-        batch_targets = []
-        end = self.start + batch_size
-        batch_inputs = self.dataset["input"][self.start:end]
-        batch_targets = self.dataset["target"][self.start:end]
-
-        self.start = end
-
-        if (len(batch_inputs) < batch_size):
-            rest = batch_size - len(batch_inputs)
-            batch_inputs += self.dataset["input"][:rest]
-            batch_targets += self.dataset["target"][:rest]
-            self.start = rest
-
-        return batch_inputs, batch_targets
-
-
-if __name__ == "__main__":
-    voc = Vocabulary()
-    voc.load_from_file("data/vocabulary.train")
-
-    pad_idx = voc.voc["<pad>"].idx
-    data_source = DataSource("data/encoded.train", pad_idx)
-
-    model = LSTM_LM(voc, data_source, is_training=True)
-    idx = model.vocab.voc["something"].idx
-
-    model.create_model()
-    emb_path = None 
-    if len(sys.argv) >= 2:
-        print("Loading embeddings from %s" % (sys.argv[1]))
-        emb_path = sys.argv[1]
-    model.train(emb_path)
+                # Generate sentences
