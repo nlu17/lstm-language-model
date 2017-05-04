@@ -20,8 +20,6 @@ class LSTM_LM:
         self.data_source = data_source
         self.is_training = is_training
 
-        # self.embeddings = tf.Variable(tf.zeros([vocab.voc_size, EMB_SIZE]))
-
         self.softmax_w = tf.get_variable(
             "softmax_w",
             [LSTM_HIDDEN, self.vocab.voc_size],
@@ -33,25 +31,33 @@ class LSTM_LM:
             initializer=tf.contrib.layers.xavier_initializer(),
             dtype=tf.float32)
 
-    def create_model(self, path=None):
+    def create_model(self, pretrained_embeddings_path=None):
         self.input_data = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
         self.targets = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
 
-        # TODO: make it so we can initialize the embeddings with a matrix of
-        # pretrained embeddings.
-        embeddings = tf.Variable(tf.zeros([self.vocab.voc_size, EMB_SIZE]))
-        if path is None:
-            emb_initializer = tf.contrib.layers.xavier_initializer()
-            embeddings = tf.get_variable(
-                "embeddings",
-                [self.vocab.voc_size, EMB_SIZE],
-                initializer=emb_initializer,
-                dtype=tf.float32)
+        self.assign_emb = None
+        self.embeddings = tf.get_variable(
+            "embeddings",
+            [self.vocab.voc_size, EMB_SIZE],
+            dtype=tf.float32)
+        if pretrained_embeddings_path is None:
+            self.embeddings.initializer = tf.contrib.layers.xavier_initializer()
         else:
             with tf.Session() as sess:
-                load_embedding(self.sess, self.vocab, embeddings, path, EMB_SIZE)
+                new_embeddings = tf.get_variable(
+                    "new_emb",
+                    [self.vocab.voc_size, EMB_SIZE],
+                    dtype=tf.float32)
+                load_embedding(
+                    sess,
+                    self.vocab,
+                    new_embeddings,
+                    pretrained_embeddings_path,
+                    EMB_SIZE)
+                self.assign_emb = tf.assign(self.embeddings, new_embeddings)
+                print("EMB", self.embeddings)
 
-        emb_inputs = tf.nn.embedding_lookup(embeddings, self.input_data)
+        emb_inputs = tf.nn.embedding_lookup(self.embeddings, self.input_data)
 
         cell = tf.contrib.rnn.BasicLSTMCell(LSTM_HIDDEN, state_is_tuple=True)
 
@@ -102,6 +108,9 @@ class LSTM_LM:
         with tf.Session() as sess:
             sess.run(self.init_weights)
             # TODO: run the assign op
+            if self.assign_emb is not None:
+                sess.run(self.assign_emb)
+            print(sess.run(self.embeddings)[0])
             step = 1
             # Keep training until reach max iterations
             while step * BATCH_SIZE < MAX_ITERS:
@@ -168,9 +177,8 @@ if __name__ == "__main__":
     data_source = DataSource("data/encoded.train", pad_idx)
 
     model = LSTM_LM(voc, data_source, is_training=True)
-    print(model.embeddings.get_shape())
     idx = model.vocab.voc["something"].idx
 
-    model.create_model()
-    # model.create_model("wordembeddings-dim100.word2vec")
+#     model.create_model()
+    model.create_model("wordembeddings-dim100.word2vec")
     model.train()

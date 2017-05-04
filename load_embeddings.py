@@ -16,6 +16,9 @@ def load_embedding(session, vocab, emb, path, dim_embedding):
     external_embedding = np.zeros(shape=(vocab.voc_size, dim_embedding))
     matches = 0
     for tok, tok_info in vocab.voc.items():
+        # Remove angular brackets for the special symbols (e.g. <bos>, <unk>,
+        # <pad>, <eos>).
+        tok = tok.strip("<>") if len(tok) >= 2 else tok
         if tok in model.vocab:
             external_embedding[tok_info.idx] = model[tok]
             matches += 1
