@@ -32,31 +32,15 @@ class LSTM_LM:
             initializer=tf.contrib.layers.xavier_initializer(),
             dtype=tf.float32)
 
-    def create_model(self, pretrained_embeddings_path=None):
+    def create_model(self):
         self.input_data = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
         self.targets = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
 
-        self.assign_emb = None
         self.embeddings = tf.get_variable(
             "embeddings",
             [self.vocab.voc_size, EMB_SIZE],
+            initializer=tf.contrib.layers.xavier_initializer(),
             dtype=tf.float32)
-        if pretrained_embeddings_path is None:
-            self.embeddings.initializer = tf.contrib.layers.xavier_initializer()
-        else:
-            with tf.Session() as sess:
-                new_embeddings = tf.get_variable(
-                    "new_emb",
-                    [self.vocab.voc_size, EMB_SIZE],
-                    dtype=tf.float32)
-                load_embedding(
-                    sess,
-                    self.vocab,
-                    new_embeddings,
-                    pretrained_embeddings_path,
-                    EMB_SIZE)
-                self.assign_emb = tf.assign(self.embeddings, new_embeddings)
-                print("EMB", self.embeddings)
 
         emb_inputs = tf.nn.embedding_lookup(self.embeddings, self.input_data)
 
@@ -105,12 +89,19 @@ class LSTM_LM:
 
         self.init_weights = tf.global_variables_initializer()
 
-    def train(self):
+    def train(self, pretrained_embeddings_path=None):
         with tf.Session() as sess:
             sess.run(self.init_weights)
-            # Assign the pretrained embeddings if any were provided.
-            if self.assign_emb is not None:
-                sess.run(self.assign_emb)
+
+            if pretrained_embeddings_path is not None:
+                load_embedding(
+                    sess,
+                    self.vocab,
+                    self.embeddings,
+                    pretrained_embeddings_path,
+                    EMB_SIZE)
+                print("EMB", self.embeddings)
+
             # TODO: I expect this to print the embeddings of the most frequent
             # token (i.e. first word in the data/vocabulary.train file)
             print(sess.run(self.embeddings)[0])
@@ -185,6 +176,6 @@ if __name__ == "__main__":
     if len(sys.argv) <= 2:
         model.create_model()
     else:
-        print("Loading embeddings from %s" %(sys.argv[1]))
+        print("Loading embeddings from %s" % (sys.argv[1]))
         model.create_model(sys.argv[1])
     model.train()

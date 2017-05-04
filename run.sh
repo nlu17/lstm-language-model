@@ -33,7 +33,8 @@ fi
 # Run the model
 if [[ $# == 0 ]]; then
   echo "Running 1.1 Experiment A"
-  source activate tensorflow      # tensorflow conda environment
+  # source activate tensorflow      # tensorflow conda environment
+  export CUDA_VISIBLE_DEVICES=""
   python3 lstm_lm.py || fail "Unable to run lstm"
 elif [[ $# == 1 ]]; then
   if [[ $1 == "w2vec" || $1 == "word2vec" ]]; then
