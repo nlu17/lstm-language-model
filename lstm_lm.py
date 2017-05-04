@@ -7,7 +7,7 @@ EMB_SIZE = 100
 SEQ_LEN = 30
 LSTM_HIDDEN = 512
 BATCH_SIZE = 64
-CLIP_NORM = 10  # TODO: clip the norms
+CLIP_NORM = 10
 
 LEARNING_RATE = 0.001
 DISPLAY_STEP = 10
@@ -107,14 +107,18 @@ class LSTM_LM:
     def train(self):
         with tf.Session() as sess:
             sess.run(self.init_weights)
-            # TODO: run the assign op
+
+            # Assign the pretrained embeddings if any were provided.
             if self.assign_emb is not None:
                 sess.run(self.assign_emb)
+            # TODO: I expect this to print the embeddings of the most frequent
+            # token (i.e. first word in the data/vocabulary.train file)
             print(sess.run(self.embeddings)[0])
+
             step = 1
             # Keep training until reach max iterations
             while step * BATCH_SIZE < MAX_ITERS:
-                # TODO: get next batch
+                # Get next batch.
                 batch_inputs, batch_targets = \
                     self.data_source.next_train_batch(BATCH_SIZE)
                 # Run optimization op (backprop)
