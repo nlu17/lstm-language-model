@@ -30,12 +30,12 @@ else
   echo "Encoded found"
 fi
 
-# Run the model
+# Train the model
 if [[ $# == 0 ]]; then
   echo "Running 1.1 Experiment A"
   # source activate tensorflow      # tensorflow conda environment
   export CUDA_VISIBLE_DEVICES=""
-  python3 lstm_lm.py || fail "Unable to run lstm"
+  python3 train.py a || fail "Unable to run lstm"
 elif [[ $# == 1 ]]; then
   if [[ $1 == "w2vec" || $1 == "word2vec" ]]; then
     echo "Running 1.1 Experiment B"
@@ -43,13 +43,17 @@ elif [[ $# == 1 ]]; then
       echo "Word2vec embedding file not present, aborting" 
       exit 2
     fi
-    python3 lstm_lm.py $DATA_DIR/wordembeddings-dim100.word2vec || fail "Unable to run lstm"
+    python3 train.py b $DATA_DIR/wordembeddings-dim100.word2vec || fail "Unable to run lstm"
   else
     # probably an overkill
     echo "Running with embedding file " $1
-    python3 lstm_lm.py $1 || fail "Unable to run lstm"
+    python3 train.py b $1 || fail "Unable to run lstm"
   fi
 else
   # For other experiments
   echo "Much arguments, such wow"
 fi
+
+# Test the model
+
+# Generate sentences
