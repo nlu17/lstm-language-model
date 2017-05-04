@@ -10,7 +10,8 @@ CLIP_NORM = 10
 LEARNING_RATE = 0.001
 DISPLAY_STEP = 10
 SAVE_STEP = 1000
-MAX_ITERS = 5000
+#MAX_ITERS = 2000000
+MAX_ITERS = 20000
 
 
 class LSTM_LM:
@@ -92,7 +93,7 @@ class LSTM_LM:
     Saves model in a file
     """
     def save_model(self, sess, filename="final"):
-        filename = "model/" + exp_name + "_" + filename + ".ckpt"
+        filename = "model/" + self.exp_name + "_" + filename + ".ckpt"
         saver = tf.train.Saver()
         saver.save(sess, filename)
 
@@ -100,7 +101,7 @@ class LSTM_LM:
     Loads the model from a file
     """
     def load_model(self, sess, filename="final"):
-        filename = "model/" + exp_name + "_" + filename + ".ckpt"
+        filename = "model/" + self.exp_name + "_" + filename + ".ckpt"
         saver = tf.train.Saver()
         saver.restore(sess, filename)
 
@@ -144,6 +145,8 @@ class LSTM_LM:
                     self.save_model(sess, str(step))
 
                 step += 1
+            print("Saving final model")
+            self.save_model(sess, "final")
 
                 # Test the model
 

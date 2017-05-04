@@ -31,6 +31,7 @@ else
 fi
 
 # Train the model
+STARTTIME=$(date +%s)
 if [[ $# == 0 ]]; then
   echo "Running 1.1 Experiment A"
   # source activate tensorflow      # tensorflow conda environment
@@ -53,6 +54,8 @@ else
   # For other experiments
   echo "Much arguments, such wow"
 fi
+ENDTIME=$(date +%s)
+echo "It takes $((($ENDTIME - $STARTTIME) / 60)) minutes to train..."
 
 # Test the model
 

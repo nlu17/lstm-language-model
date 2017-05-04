@@ -4,3 +4,4 @@ data/
 *word2vec
 *pyc
 model/
+*.out
