@@ -15,16 +15,12 @@ MAX_ITERS = 5000
 
 
 class LSTM_LM:
-    def __init__(self, vocab, data_source, is_training, dropout=1):
+    def __init__(self, vocab, data_source, is_training):
         self.vocab = vocab
         self.data_source = data_source
         self.is_training = is_training
-        self.dropout = dropout
 
-        #self.embeddings = tf.Variable(tf.zeros([vocab.voc_size, EMB_SIZE]))
-
-        # Dropout (keep probability).
-        self.keep_prob = tf.placeholder(tf.float32)
+        # self.embeddings = tf.Variable(tf.zeros([vocab.voc_size, EMB_SIZE]))
 
         self.softmax_w = tf.get_variable(
             "softmax_w",
@@ -43,7 +39,7 @@ class LSTM_LM:
 
         # TODO: make it so we can initialize the embeddings with a matrix of
         # pretrained embeddings.
-        embeddings = tf.Variable(tf.zeros([vocab.voc_size, EMB_SIZE]))
+        embeddings = tf.Variable(tf.zeros([self.vocab.voc_size, EMB_SIZE]))
         if path is None:
             emb_initializer = tf.contrib.layers.xavier_initializer()
             embeddings = tf.get_variable(
@@ -56,14 +52,8 @@ class LSTM_LM:
                 load_embedding(self.sess, self.vocab, embeddings, path, EMB_SIZE)
 
         emb_inputs = tf.nn.embedding_lookup(embeddings, self.input_data)
-        if self.is_training and self.dropout < 1:
-            emb_inputs = tf.nn.dropout(emb_inputs, self.keep_prob)
 
         cell = tf.contrib.rnn.BasicLSTMCell(LSTM_HIDDEN, state_is_tuple=True)
-        # TODO: get rid of dropout, saurav
-        if self.is_training and self.dropout < 1:
-            cell = tf.contrib.rnn.DropoutWrapper(
-                    cell, output_keep_prob=self.keep_prob)
 
         initial_state = cell.zero_state(BATCH_SIZE, tf.float32)
 
@@ -123,16 +113,14 @@ class LSTM_LM:
                         self.optimizer,
                         feed_dict={
                             self.input_data: batch_inputs,
-                            self.targets: batch_targets,
-                            self.keep_prob: self.dropout})
+                            self.targets: batch_targets})
                 if step % DISPLAY_STEP == 0:
                     # Calculate batch loss and accuracy
                     loss, acc = sess.run(
                             [self.cost, self.accuracy],
                             feed_dict={
                                     self.input_data: batch_inputs,
-                                    self.targets: batch_targets,
-                                    self.keep_prob: 1})
+                                    self.targets: batch_targets})
                     print("Iter " + str(step*BATCH_SIZE) +
                           ", Minibatch Loss = {:.6f}".format(loss) +
                           ", Training Accuracy = {:.5f}".format(acc))
@@ -144,7 +132,7 @@ class DataSource:
         self.start = 0
         self.dataset = {}
         with open(data_file, "r") as f:
-            lines = f.readlines()[:100] # TODO: remove the :100 part
+            lines = f.readlines()[:100]  # TODO: remove the :100 part
             lines = [line.strip("\n").split(" ") for line in lines]
             lines = [np.array([int(x) for x in line]) for line in lines]
             targets = [np.append(line[1:], pad_idx) for line in lines]
@@ -174,7 +162,7 @@ class DataSource:
 
 if __name__ == "__main__":
     voc = Vocabulary()
-    voc.load_from_file("data/sentences.train")
+    voc.load_from_file("data/vocabulary.train")
 
     pad_idx = voc.voc["<pad>"].idx
     data_source = DataSource("data/encoded.train", pad_idx)
@@ -184,5 +172,5 @@ if __name__ == "__main__":
     idx = model.vocab.voc["something"].idx
 
     model.create_model()
-    #model.create_model("wordembeddings-dim100.word2vec")
+    # model.create_model("wordembeddings-dim100.word2vec")
     model.train()
