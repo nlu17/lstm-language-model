@@ -170,7 +170,7 @@ if __name__ == "__main__":
     idx = model.vocab.voc["something"].idx
 
     model.create_model()
-    emb_path = None 
+    emb_path = None
     if len(sys.argv) >= 2:
         print("Loading embeddings from %s" % (sys.argv[1]))
         emb_path = sys.argv[1]
