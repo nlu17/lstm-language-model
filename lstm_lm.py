@@ -92,7 +92,6 @@ class LSTM_LM:
     def train(self, pretrained_embeddings_path=None):
         with tf.Session() as sess:
             sess.run(self.init_weights)
-
             if pretrained_embeddings_path is not None:
                 load_embedding(
                     sess,
@@ -102,9 +101,6 @@ class LSTM_LM:
                     EMB_SIZE)
                 print("EMB", self.embeddings)
 
-            # TODO: I expect this to print the embeddings of the most frequent
-            # token (i.e. first word in the data/vocabulary.train file)
-            print(sess.run(self.embeddings)[0])
             step = 1
             # Keep training until reach max iterations
             while step * BATCH_SIZE < MAX_ITERS:
@@ -173,9 +169,9 @@ if __name__ == "__main__":
     model = LSTM_LM(voc, data_source, is_training=True)
     idx = model.vocab.voc["something"].idx
 
-    if len(sys.argv) <= 2:
-        model.create_model()
-    else:
+    model.create_model()
+    emb_path = None 
+    if len(sys.argv) >= 2:
         print("Loading embeddings from %s" % (sys.argv[1]))
-        model.create_model(sys.argv[1])
-    model.train()
+        emb_path = sys.argv[1]
+    model.train(emb_path)
