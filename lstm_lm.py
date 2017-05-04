@@ -2,6 +2,7 @@ from load_embeddings import load_embedding
 import numpy as np
 import tensorflow as tf
 from vocabulary import Vocabulary
+import sys
 
 EMB_SIZE = 100
 SEQ_LEN = 30
@@ -107,14 +108,12 @@ class LSTM_LM:
     def train(self):
         with tf.Session() as sess:
             sess.run(self.init_weights)
-
             # Assign the pretrained embeddings if any were provided.
             if self.assign_emb is not None:
                 sess.run(self.assign_emb)
             # TODO: I expect this to print the embeddings of the most frequent
             # token (i.e. first word in the data/vocabulary.train file)
             print(sess.run(self.embeddings)[0])
-
             step = 1
             # Keep training until reach max iterations
             while step * BATCH_SIZE < MAX_ITERS:
@@ -183,6 +182,9 @@ if __name__ == "__main__":
     model = LSTM_LM(voc, data_source, is_training=True)
     idx = model.vocab.voc["something"].idx
 
-#     model.create_model()
-    model.create_model("wordembeddings-dim100.word2vec")
+    if len(sys.argv) <= 2:
+        model.create_model()
+    else:
+        print("Loading embeddings from %s" %(sys.argv[1]))
+        model.create_model(sys.argv[1])
     model.train()
