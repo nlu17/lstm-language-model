@@ -9,9 +9,8 @@ CLIP_NORM = 10
 
 LEARNING_RATE = 0.001
 DISPLAY_STEP = 10
-SAVE_STEP = 1000
-#MAX_ITERS = 2000000
-MAX_ITERS = 20000
+SAVE_STEP = 10000
+MAGIC = 2000000
 
 
 class LSTM_LM:
@@ -32,6 +31,9 @@ class LSTM_LM:
             initializer=tf.contrib.layers.xavier_initializer(),
             dtype=tf.float32)
 
+    """
+    Creates computation graph
+    """
     def create_model(self):
         self.input_data = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
         self.targets = tf.placeholder(tf.int32, [BATCH_SIZE, SEQ_LEN])
@@ -48,27 +50,64 @@ class LSTM_LM:
 
         initial_state = cell.zero_state(BATCH_SIZE, tf.float32)
 
-        print("inputs", emb_inputs)
+        #print("inputs", emb_inputs)
         outputs = []
-        state = initial_state
         with tf.variable_scope("RNN"):
+            state = initial_state
             for time_step in range(SEQ_LEN):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
                 (cell_output, state) = cell(emb_inputs[:, time_step, :], state)
                 outputs.append(cell_output)
         final_state = state
-        print("final_state", final_state)
-        print("outputs", outputs)
+        #print("final_state", final_state)
+        #print("outputs", outputs)
 
         output = tf.reshape(
-            tf.concat(axis=1, values=outputs),
-            [-1, LSTM_HIDDEN])
-        logits = tf.matmul(output, self.softmax_w) + self.softmax_b
-        print("logits", logits)
+            tf.concat(axis=1, values=outputs),                          # (B, S*H)
+            [-1, LSTM_HIDDEN])                                          # (B*S, H)
+        logits = tf.matmul(output, self.softmax_w) + self.softmax_b     # (B*S, V)
+        #print("logits", logits)
+
+        """
+        <Perplexity computation>
+        """
+        flat_targets = tf.reshape(self.targets, [-1])
+        nums = tf.range(flat_targets.shape[0])
+        print("n shape ", nums.shape, " targets shape ", flat_targets.shape)
+        idx = tf.transpose(
+                tf.concat([tf.reshape(nums, [1, -1]), tf.reshape(flat_targets, [1, -1])], 
+                axis=0))
+        print("idx shape", idx.shape)
+        log_word_probs = tf.nn.log_softmax(logits, name="word_probs")
+        log_probs = tf.reshape(
+                tf.gather_nd(log_word_probs, idx),                       # (B*S)
+                [-1, SEQ_LEN])                                           # (B, S)
+        print("log probs shape", log_probs.shape)
+        zeros = tf.zeros_like(log_probs)
+        ones = tf.ones_like(log_probs)
+        pads = tf.fill(log_probs.shape, self.data_source.pad_idx, name="pads")
+        mask = tf.equal(self.input_data, pads)
+        sum_perplexity = tf.reduce_sum(
+                tf.where(mask, zeros, log_probs),
+                axis=1,
+                name = "sum_perplexity"
+                )
+        count_perplexity = tf.reduce_sum(
+                tf.where(mask, zeros, ones),
+                axis=1,
+                name = "count_perplexity"
+                )
+        avg_perplexity = tf.div(sum_perplexity, count_perplexity, name="avg_perplexity")
+        two = tf.fill(avg_perplexity.shape, 2.)
+        self.perplexity = tf.pow(two, avg_perplexity, name="perplexity")
+        print("perplexity shape", self.perplexity.shape)
+        """
+        </Perplexity computation>
+        """
 
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            labels=[tf.reshape(self.targets, [-1])],
+            labels=[flat_targets],
             logits=[logits])
 
         print("loss", loss)
@@ -102,10 +141,14 @@ class LSTM_LM:
     """
     def load_model(self, sess, filename="final"):
         filename = "model/" + self.exp_name + "_" + filename + ".ckpt"
+        print("loading from", filename)
         saver = tf.train.Saver()
         saver.restore(sess, filename)
 
-    def train(self, pretrained_embeddings_path=None):
+    """
+    Train function, takes pretrained embeddings as optional argument
+    """
+    def train(self, MAX_ITERS = MAGIC, pretrained_embeddings_path=None):
         with tf.Session() as sess:
             sess.run(self.init_weights)
             if pretrained_embeddings_path is not None:
@@ -119,7 +162,7 @@ class LSTM_LM:
 
             step = 1
             # Keep training until reach max iterations
-            while step * BATCH_SIZE < MAX_ITERS:
+            while step * BATCH_SIZE <= MAX_ITERS:
                 # Get next batch.
                 batch_inputs, batch_targets = \
                     self.data_source.next_train_batch(BATCH_SIZE)
@@ -148,6 +191,27 @@ class LSTM_LM:
             print("Saving final model")
             self.save_model(sess, "final")
 
-                # Test the model
+    """
+    Evaluates sentence perplexity for each sentence from data_source
+    """
+    def eval(self, model_name="final", MAX_ITERS=BATCH_SIZE):
+        with tf.Session() as sess:
+            self.load_model(sess, model_name)
+            step = 0                                            # last few values will be repeated
+            idx = 0
+            while step * BATCH_SIZE <= MAX_ITERS:
+                # Get next batch.
+                batch_inputs, batch_targets = \
+                    self.data_source.next_train_batch(BATCH_SIZE)
+                # Run perplexity
+                perplexity = sess.run(
+                        self.perplexity,
+                        feed_dict={
+                            self.input_data: batch_inputs,
+                            self.targets: batch_targets})
+                for p in perplexity:
+                    print(idx, p)
+                    idx += 1
+                step += 1
 
-                # Generate sentences
+    # Generate sentences
