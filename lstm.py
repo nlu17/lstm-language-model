@@ -10,14 +10,15 @@ CLIP_NORM = 10
 LEARNING_RATE = 0.001
 DISPLAY_STEP = 10
 SAVE_STEP = 1000
-#MAX_ITERS = 2000000
-MAX_ITERS = 20000
+# MAX_ITERS = 2000000
+MAX_ITERS = 2000
+
+MAX_GEN_LENGTH = 20
 
 
 class LSTM_LM:
-    def __init__(self, vocab, data_source, is_training, exp_name):
+    def __init__(self, vocab, is_training, exp_name):
         self.vocab = vocab
-        self.data_source = data_source
         self.is_training = is_training
         self.exp_name = exp_name
 
@@ -44,20 +45,21 @@ class LSTM_LM:
 
         emb_inputs = tf.nn.embedding_lookup(self.embeddings, self.input_data)
 
-        cell = tf.contrib.rnn.BasicLSTMCell(LSTM_HIDDEN, state_is_tuple=True)
+        self.cell = tf.contrib.rnn.BasicLSTMCell(LSTM_HIDDEN, state_is_tuple=True)
 
-        initial_state = cell.zero_state(BATCH_SIZE, tf.float32)
+        initial_state = self.cell.zero_state(BATCH_SIZE, tf.float32)
 
         print("inputs", emb_inputs)
         outputs = []
-        state = initial_state
+        final_state = None
         with tf.variable_scope("RNN"):
+            state = initial_state
             for time_step in range(SEQ_LEN):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                (cell_output, state) = cell(emb_inputs[:, time_step, :], state)
+                (cell_output, state) = self.cell(emb_inputs[:, time_step, :], state)
                 outputs.append(cell_output)
-        final_state = state
+            final_state = state
         print("final_state", final_state)
         print("outputs", outputs)
 
@@ -105,7 +107,7 @@ class LSTM_LM:
         saver = tf.train.Saver()
         saver.restore(sess, filename)
 
-    def train(self, pretrained_embeddings_path=None):
+    def train(self, data_source, pretrained_embeddings_path=None):
         with tf.Session() as sess:
             sess.run(self.init_weights)
             if pretrained_embeddings_path is not None:
@@ -122,7 +124,7 @@ class LSTM_LM:
             while step * BATCH_SIZE < MAX_ITERS:
                 # Get next batch.
                 batch_inputs, batch_targets = \
-                    self.data_source.next_train_batch(BATCH_SIZE)
+                    data_source.next_train_batch(BATCH_SIZE)
                 # Run optimization op (backprop)
                 sess.run(
                         self.optimizer,
@@ -148,6 +150,16 @@ class LSTM_LM:
             print("Saving final model")
             self.save_model(sess, "final")
 
-                # Test the model
+            # Test the model
 
-                # Generate sentences
+        def create_generation_setup(self):
+
+
+        """
+        Performs conditional generation of sentences based on the trained
+        language model.
+        """
+        def generate(self, init_seq, max_length=MAX_GEN_LENGTH):
+            # TODO: take into account that max_length doesn't count <bos> too
+            # init_sez doesn't start with <bos>
+            pass

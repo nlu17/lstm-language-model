@@ -10,11 +10,11 @@ if __name__ == "__main__":
     pad_idx = voc.voc["<pad>"].idx
     data_source = DataSource("data/encoded.train", pad_idx)
 
-    model = LSTM_LM(voc, data_source, is_training=True, exp_name=sys.argv[1])
+    model = LSTM_LM(voc, is_training=True, exp_name=sys.argv[1])
 
     model.create_model()
-    emb_path = None 
+    emb_path = None
     if len(sys.argv) >= 3:
         print("Loading embeddings from %s" % (sys.argv[2]))
         emb_path = sys.argv[2]
-    model.train(emb_path)
+    model.train(data_source, emb_path)
