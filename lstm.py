@@ -1,4 +1,5 @@
 from load_embeddings import load_embedding
+import numpy as np
 import tensorflow as tf
 
 EMB_SIZE = 100
@@ -43,21 +44,34 @@ class LSTM_LM:
             initializer=tf.contrib.layers.xavier_initializer(),
             dtype=tf.float32)
 
-        emb_inputs = tf.nn.embedding_lookup(self.embeddings, self.input_data)
+        self.emb_inputs = tf.nn.embedding_lookup(
+            self.embeddings,
+            self.input_data)
 
-        self.cell = tf.contrib.rnn.BasicLSTMCell(LSTM_HIDDEN, state_is_tuple=True)
+        self.cell = tf.contrib.rnn.BasicLSTMCell(
+            LSTM_HIDDEN,
+            state_is_tuple=True)
 
-        initial_state = self.cell.zero_state(BATCH_SIZE, tf.float32)
+        # Define nodes for prediction.
+        self.curr_word_emb = tf.placeholder(tf.float32, [None, EMB_SIZE])
+        self.prev_state = \
+            (tf.placeholder(tf.float32, [None, LSTM_HIDDEN]),
+             tf.placeholder(tf.float32, [None, LSTM_HIDDEN]))
+        self.run_cell = self.cell(self.curr_word_emb, self.prev_state)
 
-        print("inputs", emb_inputs)
+        self.initial_state = self.cell.zero_state(BATCH_SIZE, tf.float32)
+
+        print("inputs", self.emb_inputs)
         outputs = []
         final_state = None
         with tf.variable_scope("RNN"):
-            state = initial_state
+            state = self.initial_state
             for time_step in range(SEQ_LEN):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                (cell_output, state) = self.cell(emb_inputs[:, time_step, :], state)
+                (cell_output, state) = self.cell(
+                    self.emb_inputs[:, time_step, :],
+                    state)
                 outputs.append(cell_output)
             final_state = state
         print("final_state", final_state)
@@ -96,7 +110,7 @@ class LSTM_LM:
     """
     def save_model(self, sess, filename="final"):
         filename = "model/" + self.exp_name + "_" + filename + ".ckpt"
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(tf.trainable_variables())
         saver.save(sess, filename)
 
     """
@@ -104,7 +118,7 @@ class LSTM_LM:
     """
     def load_model(self, sess, filename="final"):
         filename = "model/" + self.exp_name + "_" + filename + ".ckpt"
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(tf.trainable_variables())
         saver.restore(sess, filename)
 
     def train(self, data_source, pretrained_embeddings_path=None):
@@ -121,7 +135,7 @@ class LSTM_LM:
 
             step = 1
             # Keep training until reach max iterations
-            while step * BATCH_SIZE < MAX_ITERS:
+            while step * BATCH_SIZE <= MAX_ITERS:
                 # Get next batch.
                 batch_inputs, batch_targets = \
                     data_source.next_train_batch(BATCH_SIZE)
@@ -150,16 +164,52 @@ class LSTM_LM:
             print("Saving final model")
             self.save_model(sess, "final")
 
-            # Test the model
+    """
+    Performs conditional generation of sentences based on the trained
+    language model.
+    """
+    def generate(self, sess, sentence, max_length=MAX_GEN_LENGTH):
+        # TODO: take into account that max_length doesn't count <bos> too
+        # init_seq doesn't start with <bos>
 
-        def create_generation_setup(self):
+        tokens = sentence.split(' ')
+        tokens = [tok if tok in self.vocab.voc else "<unk>" for tok in tokens]
+        tokens = ["<bos>"] + tokens
+        init_seq = self.vocab.get_tok_ids(tokens)
 
+        step = 0
+        state = (np.zeros([1, LSTM_HIDDEN]), np.zeros([1, LSTM_HIDDEN]))
+        w_value = sess.run(self.softmax_w)
+        b_value = sess.run(self.softmax_b)
+        embeddings = sess.run(self.embeddings)
 
-        """
-        Performs conditional generation of sentences based on the trained
-        language model.
-        """
-        def generate(self, init_seq, max_length=MAX_GEN_LENGTH):
-            # TODO: take into account that max_length doesn't count <bos> too
-            # init_sez doesn't start with <bos>
-            pass
+        while step < len(init_seq) - 1:
+            curr_emb = embeddings[init_seq[step]].reshape([1, EMB_SIZE])
+            _, state = sess.run(
+                self.run_cell,
+                feed_dict={
+                    self.curr_word_emb: curr_emb,
+                    self.prev_state: state})
+            step += 1
+
+        curr_emb = embeddings[init_seq[len(init_seq)-1]].reshape([1, EMB_SIZE])
+
+        while step < MAX_GEN_LENGTH:
+            cell_output, state = sess.run(
+                self.run_cell,
+                feed_dict={
+                    self.curr_word_emb: curr_emb,
+                    self.prev_state: state})
+            logits = np.dot(cell_output, w_value) + b_value
+            next_word_id = np.argmax(logits)
+            next_word = self.vocab.sorted_voc[next_word_id][0]
+            if next_word == "eos":
+                sentence += " <eos>"
+                break
+
+            curr_emb = embeddings[next_word_id].reshape([1, EMB_SIZE])
+
+            sentence += " " + next_word
+            step += 1
+
+        return sentence

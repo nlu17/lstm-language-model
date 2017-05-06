@@ -4,20 +4,22 @@ import sys
 import tensorflow as tf
 from vocabulary import Vocabulary
 
+CONTINUATION_FILE = "data/sentences.continuation"
+OUTPUT_GEN = "data/continuation.output"
+
 if __name__ == "__main__":
     voc = Vocabulary()
     voc.load_from_file("data/vocabulary.train")
 
-#     pad_idx = voc.voc["<pad>"].idx
-#     data_source = DataSource("data/encoded.train", pad_idx)
-
     model = LSTM_LM(voc, is_training=True, exp_name=sys.argv[1])
 
     model.create_model()
-    with tf.Session() as sess:
+
+    with tf.Session() as sess, open(CONTINUATION_FILE, "r") as fin, \
+        open(OUTPUT_GEN, "w") as fout:
+        lines = [line.strip("\n") for line in fin.readlines()]
         model.load_model(sess)
-#     emb_path = None
-#     if len(sys.argv) >= 3:
-#         print("Loading embeddings from %s" % (sys.argv[2]))
-#         emb_path = sys.argv[2]
-#     model.train(data_source, emb_path)
+
+        for line in lines:
+            pred = model.generate(sess, line)
+            fout.write(pred + "\n")
