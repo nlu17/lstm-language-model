@@ -30,6 +30,14 @@ else
   echo "Encoded found"
 fi
 
+if ! [[ -f  "${DATA_DIR}/encoded.test" ]]; then
+  echo "Creating encoded.test"
+  python3 encode_dataset.py data/vocabulary.train data/sentences.test data/encoded.test || fail "Unable to create encoded dataset"
+  echo "Created encoded.test"
+else
+  echo "Encoded found"
+fi
+
 # Train the model
 STARTTIME=$(date +%s)
 if [[ $# == 0 ]]; then

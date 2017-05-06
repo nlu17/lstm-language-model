@@ -4,8 +4,7 @@ class DataSource:
     def __init__(self, data_file, pad_idx):
         self.start = 0
         self.dataset = {}
-        #self.f = open(data_file, "r")
-        #self.pad_idx = pad_idx
+        self.pad_idx = pad_idx
         with open(data_file, "r") as f:
             lines = f.readlines()
             lines = [line.strip("\n").split() for line in lines]
