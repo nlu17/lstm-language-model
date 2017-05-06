@@ -11,12 +11,12 @@ LEARNING_RATE = 0.001
 DISPLAY_STEP = 10
 SAVE_STEP = 10000
 MAGIC = 2000000
+MAX_GEN_LENGTH = 20
 
 
 class LSTM_LM:
-    def __init__(self, vocab, data_source, is_training, exp_name):
+    def __init__(self, vocab, is_training, exp_name):
         self.vocab = vocab
-        self.data_source = data_source
         self.is_training = is_training
         self.exp_name = exp_name
 
@@ -46,28 +46,23 @@ class LSTM_LM:
 
         emb_inputs = tf.nn.embedding_lookup(self.embeddings, self.input_data)
 
-        cell = tf.contrib.rnn.BasicLSTMCell(LSTM_HIDDEN, state_is_tuple=True)
+        self.cell = tf.contrib.rnn.BasicLSTMCell(LSTM_HIDDEN, state_is_tuple=True)
 
-        initial_state = cell.zero_state(BATCH_SIZE, tf.float32)
+        initial_state = self.cell.zero_state(BATCH_SIZE, tf.float32)
 
-        #print("inputs", emb_inputs)
         outputs = []
         with tf.variable_scope("RNN"):
             state = initial_state
             for time_step in range(SEQ_LEN):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                (cell_output, state) = cell(emb_inputs[:, time_step, :], state)
+                (cell_output, state) = self.cell(emb_inputs[:, time_step, :], state)
                 outputs.append(cell_output)
-        final_state = state
-        #print("final_state", final_state)
-        #print("outputs", outputs)
 
         output = tf.reshape(
             tf.concat(axis=1, values=outputs),                          # (B, S*H)
             [-1, LSTM_HIDDEN])                                          # (B*S, H)
         logits = tf.matmul(output, self.softmax_w) + self.softmax_b     # (B*S, V)
-        #print("logits", logits)
 
         """
         <Perplexity computation>
@@ -86,7 +81,7 @@ class LSTM_LM:
         print("log probs shape", log_probs.shape)
         zeros = tf.zeros_like(log_probs)
         ones = tf.ones_like(log_probs)
-        pads = tf.fill(log_probs.shape, self.data_source.pad_idx, name="pads")
+        pads = tf.fill(log_probs.shape, self.vocab.voc["pad"], name="pads")
         mask = tf.equal(self.input_data, pads)
         sum_perplexity = tf.reduce_sum(
                 tf.where(mask, zeros, log_probs),
@@ -113,7 +108,6 @@ class LSTM_LM:
         print("loss", loss)
         self.cost = tf.reduce_sum(loss) / BATCH_SIZE
         print("cost", self.cost)
-        final_state = state
 
         tvars = tf.trainable_variables()
         grads, _ = tf.clip_by_global_norm(
@@ -148,7 +142,7 @@ class LSTM_LM:
     """
     Train function, takes pretrained embeddings as optional argument
     """
-    def train(self, MAX_ITERS = MAGIC, pretrained_embeddings_path=None):
+    def train(self, data_source, MAX_ITERS = MAGIC, pretrained_embeddings_path=None):
         with tf.Session() as sess:
             sess.run(self.init_weights)
             if pretrained_embeddings_path is not None:
@@ -165,7 +159,7 @@ class LSTM_LM:
             while step * BATCH_SIZE <= MAX_ITERS:
                 # Get next batch.
                 batch_inputs, batch_targets = \
-                    self.data_source.next_train_batch(BATCH_SIZE)
+                    data_source.next_train_batch(BATCH_SIZE)
                 # Run optimization op (backprop)
                 sess.run(
                         self.optimizer,
@@ -194,7 +188,7 @@ class LSTM_LM:
     """
     Evaluates sentence perplexity for each sentence from data_source
     """
-    def eval(self, model_name="final", MAX_ITERS=BATCH_SIZE):
+    def eval(self, data_source, model_name="final", MAX_ITERS=BATCH_SIZE):
         with tf.Session() as sess:
             self.load_model(sess, model_name)
             step = 0                                            # last few values will be repeated
@@ -202,7 +196,7 @@ class LSTM_LM:
             while step * BATCH_SIZE <= MAX_ITERS:
                 # Get next batch.
                 batch_inputs, batch_targets = \
-                    self.data_source.next_train_batch(BATCH_SIZE)
+                    data_source.next_train_batch(BATCH_SIZE)
                 # Run perplexity
                 perplexity = sess.run(
                         self.perplexity,
@@ -213,5 +207,3 @@ class LSTM_LM:
                     print(idx, p)
                     idx += 1
                 step += 1
-
-    # Generate sentences
