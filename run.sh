@@ -58,6 +58,9 @@ elif [[ $# == 1 ]]; then
     echo "Running with embedding file " $1
     python3 train.py b $1 || fail "Unable to run lstm"
   fi
+elif [[ $# == 2 && $2 == "c" ]]; then
+  echo "Running 1.1. Experiment C"
+  python3 train.py c $DATA_DIR/wordembeddings-dim100.word2vec || fail "Unable to run lstm"
 else
   # For other experiments
   echo "Much arguments, such wow"

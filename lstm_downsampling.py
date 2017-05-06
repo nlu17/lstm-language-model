@@ -109,7 +109,7 @@ class LSTM_C:
         print("log probs shape", log_probs.shape)
         zeros = tf.zeros_like(log_probs)
         ones = tf.ones_like(log_probs)
-        pads = tf.fill(log_probs.shape, self.vocab.voc["pad"], name="pads")
+        pads = tf.fill(log_probs.shape, self.vocab.voc["<pad>"].idx, name="pads")
         mask = tf.equal(self.input_data, pads)
         sum_perplexity = tf.reduce_sum(
                 tf.where(mask, zeros, log_probs),

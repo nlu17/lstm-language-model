@@ -2,6 +2,7 @@ from vocabulary import Vocabulary
 import sys
 from lstm import LSTM_LM
 from datasource import DataSource
+from lstm_downsampling import LSTM_C
 
 if __name__ == "__main__":
     voc = Vocabulary()
@@ -10,7 +11,11 @@ if __name__ == "__main__":
     pad_idx = voc.voc["<pad>"].idx
     data_source = DataSource("data/encoded.train", pad_idx)
 
-    model = LSTM_LM(voc, is_training=True, exp_name=sys.argv[1])
+    if sys.argv[1] == 'c':
+        print('Creating the model for experiment C!')
+        model = LSTM_C(voc, is_training = True, exp_name=sys.argv[1])
+    else:
+        model = LSTM_LM(voc, is_training=True, exp_name=sys.argv[1])
 
     model.create_model()
     emb_path = None
