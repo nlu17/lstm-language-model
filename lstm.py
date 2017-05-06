@@ -254,7 +254,8 @@ class LSTM_LM:
     """
     def eval(self, data_source, model_name="final", MAX_ITERS=BATCH_SIZE):
         with tf.Session() as sess:
-            self.load_model(sess, model_name)
+            if not self.is_training:
+                self.load_model(sess, model_name)
             step = 0                                            # last few values will be repeated
             idx = 0
             while step * BATCH_SIZE <= MAX_ITERS:
