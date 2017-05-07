@@ -158,48 +158,48 @@ class LSTM_LM:
     """
     Train function, takes pretrained embeddings as optional argument
     """
-    def train(self, data_source, MAX_ITERS = MAGIC, pretrained_embeddings_path=None):
-        with tf.Session() as sess:
-            sess.run(self.init_weights)
-            if pretrained_embeddings_path is not None:
-                load_embedding(
-                    sess,
-                    self.vocab,
-                    self.embeddings,
-                    pretrained_embeddings_path,
-                    EMB_SIZE)
-                print("EMB", self.embeddings)
+    def train(self, sess, data_source, MAX_ITERS = MAGIC, pretrained_embeddings_path=None):
+        #with tf.Session() as sess:
+        sess.run(self.init_weights)
+        if pretrained_embeddings_path is not None:
+            load_embedding(
+                sess,
+                self.vocab,
+                self.embeddings,
+                pretrained_embeddings_path,
+                EMB_SIZE)
+            print("EMB", self.embeddings)
 
-            step = 1
-            # Keep training until reach max iterations
-            while step * BATCH_SIZE <= MAX_ITERS:
-                # Get next batch.
-                batch_inputs, batch_targets = \
-                    data_source.next_train_batch(BATCH_SIZE)
-                # Run optimization op (backprop)
-                sess.run(
-                        self.optimizer,
+        step = 1
+        # Keep training until reach max iterations
+        while step * BATCH_SIZE <= MAX_ITERS:
+            # Get next batch.
+            batch_inputs, batch_targets = \
+                data_source.next_train_batch(BATCH_SIZE)
+            # Run optimization op (backprop)
+            sess.run(
+                    self.optimizer,
+                    feed_dict={
+                        self.input_data: batch_inputs,
+                        self.targets: batch_targets})
+            if step % DISPLAY_STEP == 0:
+                # Calculate batch loss and accuracy
+                loss, acc = sess.run(
+                        [self.cost, self.accuracy],
                         feed_dict={
-                            self.input_data: batch_inputs,
-                            self.targets: batch_targets})
-                if step % DISPLAY_STEP == 0:
-                    # Calculate batch loss and accuracy
-                    loss, acc = sess.run(
-                            [self.cost, self.accuracy],
-                            feed_dict={
-                                    self.input_data: batch_inputs,
-                                    self.targets: batch_targets})
-                    print("Iter " + str(step*BATCH_SIZE) +
-                          ", Minibatch Loss = {:.6f}".format(loss) +
-                          ", Training Accuracy = {:.5f}".format(acc))
-                if step % SAVE_STEP == 0:
-                    # save model
-                    print("Saving model iter %d" % step)
-                    self.save_model(sess, str(step))
+                                self.input_data: batch_inputs,
+                                self.targets: batch_targets})
+                print("Iter " + str(step*BATCH_SIZE) +
+                        ", Minibatch Loss = {:.6f}".format(loss) +
+                        ", Training Accuracy = {:.5f}".format(acc))
+            if step % SAVE_STEP == 0:
+                # save model
+                print("Saving model iter %d" % step)
+                self.save_model(sess, str(step))
 
-                step += 1
-            print("Saving final model")
-            self.save_model(sess, "final")
+            step += 1
+        print("Saving final model")
+        self.save_model(sess, "final")
 
     """
     Performs conditional generation of sentences based on the trained
@@ -254,23 +254,23 @@ class LSTM_LM:
     """
     Evaluates sentence perplexity for each sentence from data_source
     """
-    def eval(self, data_source, model_name="final", MAX_ITERS=BATCH_SIZE):
-        with tf.Session() as sess:
-            if not self.is_training:
-                self.load_model(sess, model_name)
-            step = 0                                            # last few values will be repeated
-            idx = 0
-            while step * BATCH_SIZE <= MAX_ITERS:
-                # Get next batch.
-                batch_inputs, batch_targets = \
-                    data_source.next_train_batch(BATCH_SIZE)
-                # Run perplexity
-                perplexity = sess.run(
-                        self.perplexity,
-                        feed_dict={
-                            self.input_data: batch_inputs,
-                            self.targets: batch_targets})
-                for p in perplexity:
-                    print(idx, p)
-                    idx += 1
-                step += 1
+    def eval(self, sess, data_source, model_name="final", MAX_ITERS=BATCH_SIZE):
+        #with tf.Session() as sess:
+        if not self.is_training:
+            self.load_model(sess, model_name)
+        step = 0                                            # last few values will be repeated
+        idx = 0
+        while step * BATCH_SIZE <= MAX_ITERS:
+            # Get next batch.
+            batch_inputs, batch_targets = \
+                data_source.next_train_batch(BATCH_SIZE)
+            # Run perplexity
+            perplexity = sess.run(
+                    self.perplexity,
+                    feed_dict={
+                        self.input_data: batch_inputs,
+                        self.targets: batch_targets})
+            for p in perplexity:
+                print(idx, p)
+                idx += 1
+            step += 1

@@ -3,6 +3,7 @@ import sys
 from lstm import LSTM_LM
 from datasource import DataSource
 from lstm_downsampling import LSTM_C
+import tensorflow as tf
 
 if __name__ == "__main__":
     voc = Vocabulary()
@@ -20,26 +21,27 @@ if __name__ == "__main__":
 
     model.create_model()
         
-    ### Training
-    if sys.argv[1] == 'a':
-        model.train(data_source_train)
-    else:
-        model.train(data_source_train, 
-                pretrained_embeddings_path='data/wordembeddings-dim100.word2vec')
+    with tf.Session() as sess:
+        ### Training
+        if sys.argv[1] == 'a':
+            model.train(sess, data_source_train)
+        else:
+            model.train(sess, data_source_train, 
+                    pretrained_embeddings_path='data/wordembeddings-dim100.word2vec')
 
-    ### Perplexity
-    model.eval(data_source_test)
+        ### Perplexity
+        model.eval(sess, data_source_test)
 
-    ### Generation
-    if sys.argv[1] == 'c':
-        CONTINUATION_FILE = "data/sentences.continuation"
-        OUTPUT_GEN = "data/continuation.output"
-        with tf.Session() as sess, open(CONTINUATION_FILE, "r") as fin, \
-            open(OUTPUT_GEN, "w") as fout:
-            lines = [line.strip("\n") for line in fin.readlines()]
-            model.load_model(sess)
+        ### Generation
+        if sys.argv[1] == 'c':
+            CONTINUATION_FILE = "data/sentences.continuation"
+            OUTPUT_GEN = "data/continuation.output"
+            with open(CONTINUATION_FILE, "r") as fin, \
+                open(OUTPUT_GEN, "w") as fout:
+                lines = [line.strip("\n") for line in fin.readlines()]
+                model.load_model(sess)
 
-            for line in lines:
-                pred = model.generate(sess, line)
-                fout.write(pred + "\n")
+                for line in lines:
+                    pred = model.generate(sess, line)
+                    fout.write(pred + "\n")
 
