@@ -109,7 +109,9 @@ class LSTM_LM:
                 )
         avg_perplexity = tf.div(sum_perplexity, count_perplexity, name="avg_perplexity")
         two = tf.fill(avg_perplexity.shape, 2.)
-        self.perplexity = tf.pow(two, avg_perplexity, name="perplexity")
+        self.perplexity = tf.pow(two, 
+                tf.negative(avg_perplexity), 
+                name="perplexity")
         print("perplexity shape", self.perplexity.shape)
         """
         </Perplexity computation>
