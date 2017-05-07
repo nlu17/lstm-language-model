@@ -10,8 +10,9 @@ CLIP_NORM = 10
 LEARNING_RATE = 0.001
 DISPLAY_STEP = 10
 SAVE_STEP = 10000
-MAGIC = 2000000
+MAGIC = 2000 / 2
 MAX_GEN_LENGTH = 20
+INFINITY = 1000000000
 
 
 class LSTM_C:
@@ -123,7 +124,7 @@ class LSTM_C:
                 )
         avg_perplexity = tf.div(sum_perplexity, count_perplexity, name="avg_perplexity")
         two = tf.fill(avg_perplexity.shape, 2.)
-        self.perplexity = tf.pow(two, avg_perplexity, name="perplexity")
+        self.perplexity = tf.pow(two, tf.negative(avg_perplexity), name="perplexity")
         print("perplexity shape", self.perplexity.shape)
         """
         </Perplexity computation>
@@ -155,7 +156,8 @@ class LSTM_C:
     """
     def save_model(self, sess, filename="final"):
         filename = "model/" + self.exp_name + "_" + filename + ".ckpt"
-        saver = tf.train.Saver(tf.trainable_variables())
+        #saver = tf.train.Saver(tf.trainable_variables())
+        saver = tf.train.Saver()
         saver.save(sess, filename)
 
     """
@@ -170,48 +172,48 @@ class LSTM_C:
     """
     Train function, takes pretrained embeddings as optional argument
     """
-    def train(self, data_source, MAX_ITERS = MAGIC, pretrained_embeddings_path=None):
-        with tf.Session() as sess:
-            sess.run(self.init_weights)
-            if pretrained_embeddings_path is not None:
-                load_embedding(
-                    sess,
-                    self.vocab,
-                    self.embeddings,
-                    pretrained_embeddings_path,
-                    EMB_SIZE)
-                print("EMB", self.embeddings)
+    def train(self, sess, data_source, MAX_ITERS = MAGIC, pretrained_embeddings_path=None):
+        #with tf.Session() as sess:
+        sess.run(self.init_weights)
+        if pretrained_embeddings_path is not None:
+            load_embedding(
+                sess,
+                self.vocab,
+                self.embeddings,
+                pretrained_embeddings_path,
+                EMB_SIZE)
+            print("EMB", self.embeddings)
 
-            step = 1
-            # Keep training until reach max iterations
-            while step * BATCH_SIZE <= MAX_ITERS:
-                # Get next batch.
-                batch_inputs, batch_targets = \
-                    data_source.next_train_batch(BATCH_SIZE)
-                # Run optimization op (backprop)
-                sess.run(
-                        self.optimizer,
+        step = 1
+        # Keep training until reach max iterations
+        while step * BATCH_SIZE <= MAX_ITERS:
+            # Get next batch.
+            batch_inputs, batch_targets = \
+                data_source.next_train_batch(BATCH_SIZE)
+            # Run optimization op (backprop)
+            sess.run(
+                    self.optimizer,
+                    feed_dict={
+                        self.input_data: batch_inputs,
+                        self.targets: batch_targets})
+            if step % DISPLAY_STEP == 0:
+                # Calculate batch loss and accuracy
+                loss, acc = sess.run(
+                        [self.cost, self.accuracy],
                         feed_dict={
-                            self.input_data: batch_inputs,
-                            self.targets: batch_targets})
-                if step % DISPLAY_STEP == 0:
-                    # Calculate batch loss and accuracy
-                    loss, acc = sess.run(
-                            [self.cost, self.accuracy],
-                            feed_dict={
-                                    self.input_data: batch_inputs,
-                                    self.targets: batch_targets})
-                    print("Iter " + str(step*BATCH_SIZE) +
-                          ", Minibatch Loss = {:.6f}".format(loss) +
-                          ", Training Accuracy = {:.5f}".format(acc))
-                if step % SAVE_STEP == 0:
-                    # save model
-                    print("Saving model iter %d" % step)
-                    self.save_model(sess, str(step))
+                                self.input_data: batch_inputs,
+                                self.targets: batch_targets})
+                print("Iter " + str(step*BATCH_SIZE) +
+                      ", Minibatch Loss = {:.6f}".format(loss) +
+                      ", Training Accuracy = {:.5f}".format(acc))
+            if step % SAVE_STEP == 0:
+                # save model
+                print("Saving model iter %d" % step)
+                self.save_model(sess, str(step))
 
-                step += 1
-            print("Saving final model")
-            self.save_model(sess, "final")
+            step += 1
+        print("Saving final model")
+        self.save_model(sess, "final")
 
     """
     Performs conditional generation of sentences based on the trained
@@ -232,6 +234,9 @@ class LSTM_C:
         b_value = sess.run(self.softmax_b)
         embeddings = sess.run(self.embeddings)
 
+        # MAYBE COMMENT IT
+        downsampling_value = sess.run(self.downsampling_w)
+
         while step < len(init_seq) - 1:
             curr_emb = embeddings[init_seq[step]].reshape([1, EMB_SIZE])
             _, state = sess.run(
@@ -249,10 +254,19 @@ class LSTM_C:
                 feed_dict={
                     self.curr_word_emb: curr_emb,
                     self.prev_state: state})
-            logits = np.dot(cell_output, w_value) + b_value
+
+            transformed_output = np.dot(cell_output,downsampling_value)
+            logits = np.dot(transformed_output, w_value) + b_value
             next_word_id = np.argmax(logits)
+
             next_word = self.vocab.sorted_voc[next_word_id][0]
-            if next_word == "eos":
+
+            if next_word == '<pad>':
+                logits[0][next_word_id] = -INFINITY;
+                next_word_id = np.argmax(logits)
+                next_word = self.vocab.sorted_voc[next_word_id][0]
+
+            if next_word == "eos" or next_word == "<eos>":
                 sentence += " <eos>"
                 break
 
@@ -266,23 +280,32 @@ class LSTM_C:
     """
     Evaluates sentence perplexity for each sentence from data_source
     """
-    def eval(self, data_source, model_name="final", MAX_ITERS=BATCH_SIZE):
-        with tf.Session() as sess:
-            if not self.is_training:
-                self.load_model(sess, model_name)
-            step = 0                                            # last few values will be repeated
-            idx = 0
-            while step * BATCH_SIZE <= MAX_ITERS:
-                # Get next batch.
-                batch_inputs, batch_targets = \
-                    data_source.next_train_batch(BATCH_SIZE)
-                # Run perplexity
-                perplexity = sess.run(
-                        self.perplexity,
-                        feed_dict={
-                            self.input_data: batch_inputs,
-                            self.targets: batch_targets})
-                for p in perplexity:
-                    print(idx, p)
-                    idx += 1
-                step += 1
+    def eval(self, sess, data_source, model_name="final", MAX_NUM_SENTENCES=10000):        
+        step = 0                                           # last few values will be repeated
+        idx = 0
+        is_over = False
+
+        perplexities = []
+        while  not is_over:
+            # Get next batch.
+            batch_inputs, batch_targets = data_source.next_train_batch(BATCH_SIZE)
+
+            # Run perplexity
+            perplexity = sess.run(
+                    self.perplexity,
+                    feed_dict={
+                        self.input_data: batch_inputs,
+                        self.targets: batch_targets})
+
+            for p in perplexity:
+                print(p)
+                perplexities.append(p)
+                idx += 1
+
+                if idx == MAX_NUM_SENTENCES:
+                    is_over = True
+                    break
+
+            step += 1
+
+        return perplexities

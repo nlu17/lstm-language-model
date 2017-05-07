@@ -11,7 +11,7 @@ CLIP_NORM = 10
 LEARNING_RATE = 0.001
 DISPLAY_STEP = 10
 SAVE_STEP = 10000
-MAGIC = 2000000
+MAGIC = 2000000 / 1000
 MAX_GEN_LENGTH = 20
 
 
@@ -109,9 +109,7 @@ class LSTM_LM:
                 )
         avg_perplexity = tf.div(sum_perplexity, count_perplexity, name="avg_perplexity")
         two = tf.fill(avg_perplexity.shape, 2.)
-        self.perplexity = tf.pow(two, 
-                tf.negative(avg_perplexity), 
-                name="perplexity")
+        self.perplexity = tf.pow(two, tf.negative(avg_perplexity), name="perplexity")
         print("perplexity shape", self.perplexity.shape)
         """
         </Perplexity computation>
@@ -200,77 +198,36 @@ class LSTM_LM:
             step += 1
         print("Saving final model")
         self.save_model(sess, "final")
-
-    """
-    Performs conditional generation of sentences based on the trained
-    language model.
-    """
-    def generate(self, sess, sentence, max_length=MAX_GEN_LENGTH):
-        # TODO: take into account that max_length doesn't count <bos> too
-        # init_seq doesn't start with <bos>
-
-        tokens = sentence.split(' ')
-        tokens = [tok if tok in self.vocab.voc else "<unk>" for tok in tokens]
-        tokens = ["<bos>"] + tokens
-        init_seq = self.vocab.get_tok_ids(tokens)
-
-        step = 0
-        state = (np.zeros([1, LSTM_HIDDEN]), np.zeros([1, LSTM_HIDDEN]))
-        w_value = sess.run(self.softmax_w)
-        b_value = sess.run(self.softmax_b)
-        embeddings = sess.run(self.embeddings)
-
-        while step < len(init_seq) - 1:
-            curr_emb = embeddings[init_seq[step]].reshape([1, EMB_SIZE])
-            _, state = sess.run(
-                self.run_cell,
-                feed_dict={
-                    self.curr_word_emb: curr_emb,
-                    self.prev_state: state})
-            step += 1
-
-        curr_emb = embeddings[init_seq[len(init_seq)-1]].reshape([1, EMB_SIZE])
-
-        while step < MAX_GEN_LENGTH:
-            cell_output, state = sess.run(
-                self.run_cell,
-                feed_dict={
-                    self.curr_word_emb: curr_emb,
-                    self.prev_state: state})
-            logits = np.dot(cell_output, w_value) + b_value
-            next_word_id = np.argmax(logits)
-            next_word = self.vocab.sorted_voc[next_word_id][0]
-            if next_word == "eos":
-                sentence += " <eos>"
-                break
-
-            curr_emb = embeddings[next_word_id].reshape([1, EMB_SIZE])
-
-            sentence += " " + next_word
-            step += 1
-
-        return sentence
-
+    
     """
     Evaluates sentence perplexity for each sentence from data_source
     """
-    def eval(self, sess, data_source, model_name="final", MAX_ITERS=BATCH_SIZE):
-        #with tf.Session() as sess:
-        if not self.is_training:
-            self.load_model(sess, model_name)
-        step = 0                                            # last few values will be repeated
+    def eval(self, sess, data_source, model_name="final", MAX_NUM_SENTENCES=10000):        
+        step = 0                                           # last few values will be repeated
         idx = 0
-        while step * BATCH_SIZE <= MAX_ITERS:
+        is_over = False
+
+        perplexities = []
+        while  not is_over:
             # Get next batch.
-            batch_inputs, batch_targets = \
-                data_source.next_train_batch(BATCH_SIZE)
+            batch_inputs, batch_targets = data_source.next_train_batch(BATCH_SIZE)
+
             # Run perplexity
             perplexity = sess.run(
                     self.perplexity,
                     feed_dict={
                         self.input_data: batch_inputs,
                         self.targets: batch_targets})
+
             for p in perplexity:
-                print(idx, p)
+                print(p)
+                perplexities.append(p)
                 idx += 1
+
+                if idx == MAX_NUM_SENTENCES:
+                    is_over = True
+                    break
+
             step += 1
+
+        return perplexities
